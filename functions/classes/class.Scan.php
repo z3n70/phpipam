@@ -494,6 +494,10 @@ class Scan extends Common_functions {
 			$subnet_cidr = implode(" ", $subnet_cidr);
 		}
 		$cmd = $this->settings->scanNmapPath . " -sn -PE -n -oX - --privileged --noninteractive -- $subnet_cidr";
+
+
+		// die(json_encode(array("status" => 1, "error" => $cmd)));
+
 		exec(escapeshellcmd($cmd), $output, $retval);
 		$xml = simplexml_load_string(implode($output));
 		$out = array();
