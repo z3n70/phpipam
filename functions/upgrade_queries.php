@@ -19,7 +19,6 @@ include('upgrade_queries/upgrade_queries_1.3.php');
 include('upgrade_queries/upgrade_queries_1.4.php');
 include('upgrade_queries/upgrade_queries_1.5.php');
 
-
 // output if required
 if(!defined('VERSION') && php_sapi_name()=="cli") {
   // version check

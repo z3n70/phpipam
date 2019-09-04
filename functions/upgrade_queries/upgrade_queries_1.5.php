@@ -42,8 +42,12 @@ $upgrade_queries["1.5.27"][] = "-- Database version bump";
 $upgrade_queries["1.5.27"][] = "UPDATE `settings` set `dbversion` = '27';";
 
 // Subnet isPool
-//
 $upgrade_queries["1.5.28"][] = "ALTER TABLE `subnets` ADD `isPool` BOOL NOT NULL DEFAULT '0';";
-
 $upgrade_queries["1.5.28"][] = "-- Database version bump";
 $upgrade_queries["1.5.28"][] = "UPDATE `settings` set `dbversion` = '28';";
+
+
+// add Nmap scan type
+$upgrade_queries["1.5.29"][] = "ALTER TABLE `settings` ADD `scanNmapPath` VARCHAR(64)  NULL  DEFAULT '/usr/bin/nmap';";
+$upgrade_queries["1.5.29"][] = "ALTER TABLE `settings` CHANGE `scanPingType` `scanPingType` SET('ping','pear','fping','nmap')  NOT NULL  DEFAULT 'ping';";
+$upgrade_queries["1.5.28"][] = "UPDATE `settings` set `dbversion` = '29';";
