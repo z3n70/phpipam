@@ -195,25 +195,9 @@ if ($Scan->icmp_type == "fping") {
         // wait for all the threads to finish
         while (!empty($threads)) {
             foreach ($threads as $index => $thread) {
-                $child_pipe = "/tmp/pipe_" . $thread->getPid();
-
-                if (file_exists($child_pipe)) {
-                    $file_descriptor = fopen($child_pipe, "r");
-                    $child_response = "";
-                    while (!feof($file_descriptor)) {
-                        $child_response .= fread($file_descriptor, 8192);
-                    }
-                    //we have the child data in the parent, but serialized:
-                    $child_response = unserialize($child_response);
-                    //store
-                    $subnets[$index]['result'] = $child_response;
-
-                    //now, child is dead, and parent close the pipe
-                    unlink($child_pipe);
-                    unset($threads[$index]);
-                }
+                $subnets[$index]['result'] = $thread->ipc_recv_data();
+                unset($threads[$index]);
             }
-            usleep(200000);
         }
     }
 
