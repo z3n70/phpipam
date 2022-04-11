@@ -152,22 +152,20 @@ else {
 	            $z++;				//next index
 			}
 	    }
-	    // wait for all the threads to finish
-	    while( !empty( $threads ) ) {
-	        foreach( $threads as $index => $thread ) {
-	            if( ! $thread->isAlive() ) {
-	            	//online, save to array
-	            	if($thread->getExitCode() == 0) 									{ $out['alive'][] = $scan_addresses[$index]; }
-	            	//ok, but offline
-	            	elseif($thread->getExitCode() == 1 || $thread->getExitCode() == 2) 	{ $out['dead'][]  = $scan_addresses[$index];}
-	            	//error
-	            	else 																{ $out['error'][] = $scan_addresses[$index]; }
-	                //remove thread
-	                unset( $threads[$index] );
-	            }
-	        }
-	        usleep(100000);
-	    }
+		// wait for all the threads to finish
+		foreach ($threads as $index => $thread) {
+			if ($thread->getExitCode() === 0) {
+				//online, save to array
+				$out['alive'][] = $scan_addresses[$index];
+			} elseif ($thread->getExitCode() === 1 || $thread->getExitCode() === 2) {
+				//ok, but offline
+				$out['dead'][]  = $scan_addresses[$index];
+			} else {
+				//error
+				$out['error'][] = $scan_addresses[$index];
+			}
+		}
+		unset($threads);
 	}
 }
 

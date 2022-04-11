@@ -193,12 +193,11 @@ if ($Scan->icmp_type == "fping") {
             }
         }
         // wait for all the threads to finish
-        while (!empty($threads)) {
-            foreach ($threads as $index => $thread) {
-                $subnets[$index]['result'] = $thread->ipc_recv_data();
-                unset($threads[$index]);
-            }
+        foreach ($threads as $index => $thread) {
+            $subnets[$index]['result'] = $thread->ipc_recv_data();
+            $thread->getExitCode();
         }
+        unset($threads);
     }
 
     //now we must remove all non-existing hosts
@@ -255,29 +254,20 @@ else {
             }
         }
         // wait for all the threads to finish
-        while (!empty($threads)) {
-            foreach ($threads as $index => $thread) {
-                if (!$thread->isAlive()) {
-                    //online
-                    if ($thread->getExitCode() == 0) {
-                        // set new available time
-                        $addresses[$index]['lastSeenNew'] =  $nowdate;
-                        $address_change[$index] = $addresses[$index];                   //change to online
-                    }
-                    //offline
-                    else {
-                        // set nw online
-                        $addresses[$index]['lastSeenNew'] =  NULL;
-                        $address_change[$index] = $addresses[$index];                   //change to online
-                    }
-                    //save exit code for host
-                    $addresses[$index]['newStatus'] = $thread->getExitCode();
-                    //remove thread
-                    unset($threads[$index]);
-                }
+        foreach ($threads as $index => $thread) {
+            if ($thread->getExitCode() === 0) {
+                // online -- set new available time
+                $addresses[$index]['lastSeenNew'] =  $nowdate;
+                $address_change[$index] = $addresses[$index];
+            } else {
+                // offline -- set to offline
+                $addresses[$index]['lastSeenNew'] =  NULL;
+                $address_change[$index] = $addresses[$index];
             }
-            usleep(200000);
+            //save exit code for host
+            $addresses[$index]['newStatus'] = $thread->getExitCode();
         }
+        unset($threads);
     }
 
     //update statuses for online

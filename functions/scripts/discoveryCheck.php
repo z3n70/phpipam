@@ -153,17 +153,16 @@ if ($Scan->icmp_type == "fping") {
             }
         }
         // wait for all the threads to finish
-        while (!empty($threads)) {
-            foreach ($threads as $index => $thread) {
-                $scan_subnets[$index]->discovered = $thread->ipc_recv_data();
-                unset($threads[$index]);
-            }
+        foreach ($threads as $index => $thread) {
+            $scan_subnets[$index]->discovered = $thread->ipc_recv_data();
+            $thread->getExitCode();
         }
+        unset($threads);
     }
 
     //fping finds all subnet addresses, we must remove existing ones !
     foreach ($scan_subnets as $sk => $s) {
-        if (isset($s->discovered)) {
+        if (isset($s->discovered) && is_array($s->discovered)) {
             foreach ($s->discovered as $rk => $result) {
                 if (!in_array($Subnets->transform_to_decimal($result), $addresses_tmp[$s->id])) {
                     unset($scan_subnets[$sk]->discovered[$rk]);
@@ -193,19 +192,13 @@ else {
         }
 
         // wait for all the threads to finish
-        while (!empty($threads)) {
-            foreach ($threads as $index => $thread) {
-                if (!$thread->isAlive()) {
-                    //unset dead hosts
-                    if ($thread->getExitCode() != 0) {
-                        unset($addresses[$index]);
-                    }
-                    //remove thread
-                    unset($threads[$index]);
-                }
+        foreach ($threads as $index => $thread) {
+            if ($thread->getExitCode() !== 0) {
+                //unset dead hosts
+                unset($addresses[$index]);
             }
-            usleep(200000);
         }
+        unset($threads[$index]);
     }
 
     //ok, we have all available addresses, rekey them

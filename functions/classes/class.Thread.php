@@ -198,30 +198,36 @@ class PingThread {
     }
 
 	/**
-	* checks if the child thread is alive
+	* Blocks until the thread has exited
 	*
-	* @return boolean
+	* @return mixed
 	*/
-    public function isAlive() {
-        $pid = pcntl_waitpid( $this->pid, $status, WNOHANG );
+    public function join($wait = true) {
+		$pid = pcntl_waitpid($this->pid, $status, $wait ? 0 : WNOHANG);
 
-        if ($pid === 0) { // child is still alive
-            return true;
-        } else {
-            if (pcntl_wifexited($status) && $this->exitCode == -1) { // normal exit
-                $this->exitCode = pcntl_wexitstatus($status);
-            }
-            return false;
-        }
+		if ($pid === -1) {
+			// Error
+			return -1;
+		} elseif ($pid === 0) {
+			// child is still alive
+			return 0;
+		} else {
+			if (pcntl_wifexited($status)) {
+				// normal exit
+				$this->exitCode = pcntl_wexitstatus($status);
+				return $pid;
+			}
+			return -1;
+		}
     }
 
 	/**
-	* return exit code of child (-1 if child is still alive)
+	* return exit code of child (waits if still alive)
 	*
 	* @return int
 	*/
     public function getExitCode() {
-        $this->isAlive();
+        $this->join();
         return $this->exitCode;
     }
 
@@ -303,13 +309,13 @@ class PingThread {
 	* @param boolean $_wait
 	*/
     public function stop( $_signal = SIGKILL, $_wait = false ) {
-        if( $this->isAlive() ) {
-            posix_kill( $this->pid, $_signal );
-            if( $_wait ) {
-                pcntl_waitpid( $this->pid, $status = 0 );
-            }
-        }
-    }
+		if ($this->join(false) === 0) {
+			posix_kill($this->pid, $_signal);
+			if ($_wait) {
+				$this->join();
+			}
+		}
+	}
 
 	/**
 	* alias of stop();

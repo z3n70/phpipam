@@ -86,19 +86,16 @@ for ($m=0; $m<=sizeof($addresses); $m += $Scan->settings->scanMaxThreads) {
 		}
     }
     //wait for all the threads to finish
-    while( !empty( $threads ) ) {
-        foreach( $threads as $index => $thread ) {
-            if( ! $thread->isAlive() ) {
-            	//online, save to array
-            	if($thread->getExitCode() == 0) { $out['alive'][$addresses[$index]['ip']][] = $addresses[$index]['port']; }
-            	//ok, but offline
-            	else 							{ $out['dead'][$addresses[$index]['ip']][]  = $addresses[$index]['port'];}
-                //remove thread
-                unset( $threads[$index] );
-            }
+    foreach ($threads as $index => $thread) {
+        if ($thread->getExitCode() === 0) {
+            //online, save to array
+            $out['alive'][$addresses[$index]['ip']][] = $addresses[$index]['port'];
+        } else {
+            // offline
+            $out['dead'][$addresses[$index]['ip']][]  = $addresses[$index]['port'];
         }
-        usleep(100000);
     }
+    unset($threads);
 }
 
 # compose result - ok
