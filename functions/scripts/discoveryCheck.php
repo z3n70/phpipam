@@ -72,19 +72,12 @@ if (php_sapi_name() != "cli") {
 if (!PingThread::available($errmsg)) {
     die("Threading is required for scanning subnets - Error: $errmsg\n");
 }
-// verify ping path
-if ($Scan->icmp_type == "ping") {
-    if (!file_exists($Scan->settings->scanPingPath)) {
-        die("Invalid ping path!");
-    }
+// verify fping / ping path
+if ($Scan->icmp_type == "fping" && !file_exists($Scan->settings->scanFPingPath)) {
+    die("Invalid fping path!");
+} elseif (!file_exists($Scan->settings->scanPingPath)) {
+    die("Invalid ping path!");
 }
-// verify fping path
-if ($Scan->icmp_type == "fping") {
-    if (!file_exists($Scan->settings->scanFPingPath)) {
-        die("Invalid fping path!");
-    }
-}
-
 
 //first fetch all subnets to be scanned
 $scan_subnets = $Subnets->fetch_all_subnets_for_discoveryCheck(1);
@@ -94,64 +87,62 @@ if ($scan_subnets !== false) {
     $addresses_tmp = array();
     // loop
     foreach ($scan_subnets as $i => $s) {
-        // if subnet has slaves dont check it
-        if ($Subnets->has_slaves($s->id) === false) {
-            $addresses_tmp[$s->id] = $Scan->prepare_addresses_to_scan("discovery", $s->id, false);
-            // save discovery time
-            $Scan->update_subnet_discoverytime($s->id, $nowdate);
-        } else {
-            unset($scan_subnets[$i]);
-        }
+        $addresses_tmp[$s->id] = $Scan->prepare_addresses_to_scan("discovery", $s->id, false);
+        // save discovery time
+        $Scan->update_subnet_discoverytime($s->id, $nowdate);
     }
 
     //reindex
-    if (sizeof($addresses_tmp) > 0) {
-        foreach ($addresses_tmp as $s_id => $a) {
-            foreach ($a as $ip) {
-                $addresses[] = array("subnetId" => $s_id, "ip_addr" => $ip);
-            }
+    foreach ($addresses_tmp as $s_id => $a) {
+        foreach ($a as $ip) {
+            $addresses[] = array("subnetId" => $s_id, "ip_addr" => $ip);
         }
     }
 }
 
 
-if ($Scan->get_debugging() == true) {
-    print_r($scan_subnets);
-}
-if ($scan_subnets === false || !count($scan_subnets)) {
+if (empty($scan_subnets)) {
     die("No subnets are marked for new hosts checking\n");
 }
-
-
-//scan
-if ($Scan->get_debugging() == true) {
+if ($Scan->get_debugging()) {
     print "Using $Scan->icmp_type\n--------------------\n\n";
+    print_r($scan_subnets);
 }
 
 
-$z = 0;         //addresses array index
+$z = 0;         // array index
 
-// let's just reindex the subnets array to save future issues
-$scan_subnets   = array_values($scan_subnets);
-$size_subnets   = count($scan_subnets);
-$size_addresses = max(array_keys($addresses));
+// let's just reindex the arrays to save future issues
+$scan_subnets  = array_values($scan_subnets);
+$addresses     = array_values($addresses);
 
-//different scan for fping
 if ($Scan->icmp_type == "fping") {
-    //run per MAX_THREADS
-    for ($m = 0; $m <= $size_subnets; $m += $Scan->settings->scanMaxThreads) {
-        // create threads
-        $threads = array();
-        //fork processes
-        for ($i = 0; $i <= $Scan->settings->scanMaxThreads && $i <= $size_subnets; $i++) {
-            //only if index exists!
-            if (isset($scan_subnets[$z])) {
-                //start new thread
-                $threads[$z] = new PingThread('fping_subnet');
-                $threads[$z]->start_fping($Subnets->transform_to_dotted($scan_subnets[$z]->subnet) . "/" . $scan_subnets[$z]->mask);
-                $z++;               //next index
+    //different scan for fping
+    print "discoveryCheck scanning " . sizeof($scan_subnets) . " subnets\n";
+
+    while ($z < sizeof($scan_subnets)) {
+
+        $threads = [];
+
+        try {
+            //run per MAX_THREADS
+            for ($i = 0; $i < $Scan->settings->scanMaxThreads; $i++) {
+                if (isset($scan_subnets[$z])) {
+                    $thread = new PingThread('fping_subnet');
+                    $thread->start_fping($Subnets->transform_to_dotted($scan_subnets[$z]->subnet) . "/" . $scan_subnets[$z]->mask);
+                    $threads[$z++] = $thread;
+                }
             }
+        } catch (Exception $e) {
+            // We failed to spawn a scanning process.
+            print "Failed to start scanning pool, spawned " . sizeof($threads) . " of " . $Scan->settings->scanMaxThreads . "\n";
+            usleep(rand(250000, 500000));
         }
+
+        if (empty($threads)) {
+            die("Unable to spawn scanning pool");
+        }
+
         // wait for all the threads to finish
         foreach ($threads as $index => $thread) {
             $scan_subnets[$index]->discovered = $thread->ipc_recv_data();
@@ -172,34 +163,44 @@ if ($Scan->icmp_type == "fping") {
             $scan_subnets[$sk]->discovered = array_values($scan_subnets[$sk]->discovered);
         }
     }
-}
-//ping, pear
-else {
-    //run per MAX_THREADS
-    for ($m = 0; $m <= $size_addresses; $m += $Scan->settings->scanMaxThreads) {
-        // create threads
-        $threads = array();
+} else {
+    //ping, pear
+    print "discoveryCheck scanning " . sizeof($addresses) . " IPs\n";
 
-        //fork processes
-        for ($i = 0; $i <= $Scan->settings->scanMaxThreads && $i <= $size_addresses; $i++) {
-            //only if index exists!
-            if (isset($addresses[$z])) {
-                //start new thread
-                $threads[$z] = new PingThread('ping_address');
-                $threads[$z]->start($Subnets->transform_to_dotted($addresses[$z]['ip_addr']));
-                $z++;           //next index
+    while ($z < sizeof($addresses)) {
+
+        $threads = [];
+
+        try {
+            ///run per MAX_THREADS
+            for ($i = 0; $i < $Scan->settings->scanMaxThreads; $i++) {
+                if (isset($addresses[$z])) {
+                    $thread = new PingThread('ping_address');
+                    $thread->start($Subnets->transform_to_dotted($addresses[$z]['ip_addr']));
+                    $threads[$z++] = $thread;
+                }
             }
+        } catch (Exception $e) {
+            // We failed to spawn a scanning process.
+            print "Failed to start scanning pool, spawned " . sizeof($threads) . " of " . $Scan->settings->scanMaxThreads . "\n";
+            usleep(rand(250000, 500000));
+        }
+
+        if (empty($threads)) {
+            die("Unable to spawn scanning pool");
         }
 
         // wait for all the threads to finish
         foreach ($threads as $index => $thread) {
             if ($thread->getExitCode() !== 0) {
                 //unset dead hosts
-                unset($addresses[$index]);
+                $addresses[$index] = null;
             }
         }
-        unset($threads[$index]);
+        unset($threads);
     }
+
+    $addresses = array_filter($addresses);
 
     //ok, we have all available addresses, rekey them
     foreach ($addresses as $a) {
@@ -213,9 +214,8 @@ else {
     }
 }
 
-
 # print change
-if ($Scan->get_debugging() == true) {
+if ($Scan->get_debugging()) {
     print "\nDiscovered addresses:\n----------\n";
     print_r($scan_subnets);
 }
@@ -266,8 +266,8 @@ foreach ($scan_subnets as $s) {
 }
 
 # update scan time
+print "discoveryCheck found $discovered new hosts\n";
 $Scan->ping_update_scanagent_checktime(1, $nowdate);
-
 
 
 # send mail
@@ -352,3 +352,5 @@ if ($discovered > 0 && $config['discovery_check_send_mail']) {
         $Result->show_cli(_("Mailer Error") . ": " . $e->getMessage(), true);
     }
 }
+
+print "discoveryCheck complete\n";

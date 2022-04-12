@@ -564,15 +564,14 @@ class Scan extends Common_functions {
 	 *
 	 * @access public
 	 * @param int $id
-	 * @param datetime $date
+	 * @param  false|datetime $datetime
 	 * @return void
 	 */
-	public function ping_update_scanagent_checktime ($id, $date = false) {
-    	# set time
-    	if ($date === false)    { $date = date("Y-m-d H:i:s"); }
-    	else                    { $date = $date; }
+	public function ping_update_scanagent_checktime ($id, $datetime = false) {
+    	// set date
+		$datetime = $datetime===false ? date("Y-m-d H:i:s") : $datetime;
 		# execute
-		try { $this->Database->updateObject("scanAgents", array("id"=>$id, "last_access"=>date("Y-m-d H:i:s")), "id"); }
+		try { $this->Database->updateObject("scanAgents", array("id"=>$id, "last_access"=>$datetime), "id"); }
 		catch (Exception $e) {
 		}
 	}
@@ -695,7 +694,7 @@ class Scan extends Common_functions {
 	 * @param mixed $type		//discovery, update
 	 * @param mixed $subnet
 	 * @param bool $type
-	 * @return void
+	 * @return array
 	 */
 	public function prepare_addresses_to_scan ($type, $subnet, $die = true) {
 		# discover new addresses
@@ -711,7 +710,7 @@ class Scan extends Common_functions {
 	 *
 	 * @access public
 	 * @param mixed $subnetId
-	 * @return void
+	 * @return array
 	 */
 	public function prepare_addresses_to_discover_subnetId ($subnetId, $die) {
 		# initialize classes
@@ -778,7 +777,7 @@ class Scan extends Common_functions {
 	 *
 	 * @access public
 	 * @param mixed $subnet
-	 * @return void
+	 * @return array
 	 */
 	public function prepare_addresses_to_discover_subnet ($subnet) {
 		# initialize classes
@@ -797,7 +796,7 @@ class Scan extends Common_functions {
 	 *
 	 * @access public
 	 * @param mixed $subnetId
-	 * @return void
+	 * @return array
 	 */
 	public function prepare_addresses_to_update ($subnetId) {
 		# first fetch all addresses
